@@ -91,7 +91,7 @@ var DefaultBinaries = map[BinaryType]BinaryDef{
 		Type:          BinarySSHTunUser,
 		EnvVar:        "DNSTM_SSHTUN_USER_PATH",
 		URLPattern:    "https://github.com/net2share/sshtun-user/releases/download/{version}/sshtun-user-linux-{arch}",
-		PinnedVersion: "v0.3.4",
+		PinnedVersion: "v0.3.5",
 		Platforms: map[string][]string{
 			"linux": {"amd64", "arm64"},
 		},
