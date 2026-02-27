@@ -90,6 +90,7 @@ dnstm tunnel stop -t <tag>                # Stop tunnel
 dnstm tunnel restart -t <tag>             # Restart tunnel
 dnstm tunnel logs -t <tag> [-n lines]     # Show tunnel logs
 dnstm tunnel status -t <tag>              # Show tunnel status with cert/key info
+dnstm tunnel share -t <tag> [flags]       # Generate shareable dnstm:// URL
 ```
 
 ### Tunnel Add Flags
@@ -109,6 +110,34 @@ dnstm tunnel add -t my-tunnel \
 | `--domain`, `-d`  | Domain name                                   |
 | `--port`, `-p`    | Port number (auto-allocated if not specified) |
 | `--mtu`           | MTU for DNSTT (default: 1232)                 |
+
+### Tunnel Share Flags
+
+Generate a `dnstm://` URL containing all connection info needed by the client (dnstc).
+
+```bash
+# Share a SOCKS/Shadowsocks tunnel
+dnstm tunnel share -t slip-socks
+
+# Share an SSH tunnel (requires credentials)
+dnstm tunnel share -t dnstt-ssh --user tunnel-user --password secret
+
+# Share with SSH key authentication
+dnstm tunnel share -t dnstt-ssh --user tunnel-user --key /root/.ssh/client_key
+
+# Skip embedding certificate (Slipstream only)
+dnstm tunnel share -t slip-socks --no-cert
+```
+
+| Flag              | Description                                             |
+| ----------------- | ------------------------------------------------------- |
+| `--tag`, `-t`     | Tunnel tag                                              |
+| `--user`          | SSH username (required for SSH backend)                 |
+| `--password`      | SSH password (required if no key, SSH backend)          |
+| `--key`           | Path to SSH private key (alternative to password)       |
+| `--no-cert`       | Skip embedding TLS certificate (Slipstream)             |
+
+The generated URL encodes transport config (domain, cert/pubkey), backend config (type, credentials), and can be imported directly with `dnstc tunnel import`.
 
 ## Backend Commands
 

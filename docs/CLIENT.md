@@ -1,13 +1,37 @@
 # Client Setup
 
-## Prerequisites
+## Quick Setup with dnstc
+
+The easiest way to connect is using [dnstc](https://github.com/net2share/dnstc) (DNS Tunnel Client). Generate a shareable URL on the server and import it on the client:
+
+```bash
+# On the server — generate a shareable URL
+sudo dnstm tunnel share -t my-tunnel
+
+# For SSH backend tunnels, include credentials
+sudo dnstm tunnel share -t my-tunnel --user tunnel-user --password secret
+```
+
+This outputs a `dnstm://` URL containing all connection info (transport, domain, certificates/keys, backend credentials).
+
+```bash
+# On the client — import and connect
+dnstc tunnel import dnstm://...
+dnstc up
+```
+
+## Manual Setup
+
+For manual client setup without dnstc, follow the sections below.
+
+### Prerequisites
 
 Download client binaries:
 - [slipstream-client](https://github.com/net2share/slipstream-rust-build/releases)
 - [dnstt-client](https://www.bamsoftware.com/software/dnstt/)
 - [sslocal](https://github.com/shadowsocks/shadowsocks-rust/releases) (for Shadowsocks)
 
-## Connection Info
+### Connection Info
 
 Get connection details from the server:
 

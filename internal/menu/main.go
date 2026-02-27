@@ -401,6 +401,7 @@ func runTunnelManageMenu(tag string) error {
 		// Build context-aware options
 		options := []tui.MenuOption{
 			{Label: "Status", Value: "status"},
+			{Label: "Share", Value: "share"},
 			{Label: "Logs", Value: "logs"},
 		}
 
@@ -458,8 +459,8 @@ func runTunnelManageMenu(tag string) error {
 func runTunnelAction(actionID, tunnelTag string) error {
 	// Special handling for actions that need the tunnel tag
 	switch actionID {
-	case actions.ActionTunnelStatus, actions.ActionTunnelLogs, actions.ActionTunnelStart,
-		actions.ActionTunnelStop, actions.ActionTunnelRestart, actions.ActionTunnelRemove:
+	case actions.ActionTunnelStatus, actions.ActionTunnelShare, actions.ActionTunnelLogs,
+		actions.ActionTunnelStart, actions.ActionTunnelStop, actions.ActionTunnelRestart, actions.ActionTunnelRemove:
 		return runActionWithArgs(actionID, []string{tunnelTag})
 	default:
 		return RunAction(actionID)
@@ -473,26 +474,21 @@ func runActionWithArgs(actionID string, args []string) error {
 		return fmt.Errorf("unknown action: %s", actionID)
 	}
 
-	// Handle confirmation (for actions with a tag argument, include tag in message)
-	if action.Confirm != nil && len(args) > 0 {
-		tag := args[0]
-		confirm, err := tui.RunConfirm(tui.ConfirmConfig{
-			Title:       fmt.Sprintf("%s '%s'?", action.Confirm.Message, tag),
-			Description: action.Confirm.Description,
-			Default:     !action.Confirm.DefaultNo,
-		})
-		if err != nil {
-			return err
-		}
-		if !confirm {
-			return errCancelled
-		}
+	// Build context and set arg from args
+	ctx := newActionContext()
+	var argValue string
+	if action.Args != nil && len(args) > 0 {
+		argValue = args[0]
+		ctx.Values[action.Args.Name] = argValue
 	}
 
-	// Build context and set tag from args
-	ctx := newActionContext(nil)
-	if action.Args != nil && action.Args.Name == "tag" && len(args) > 0 {
-		ctx.Values["tag"] = args[0]
+	// Collect any additional inputs interactively (e.g., SSH user/password for tunnel share)
+	if err := collectInputs(ctx, action); err != nil {
+		return err
+	}
+
+	if err := handleConfirmation(action, argValue); err != nil {
+		return err
 	}
 
 	if action.Handler == nil {

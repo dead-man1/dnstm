@@ -15,8 +15,8 @@ import (
 func isInfoViewAction(actionID string) bool {
 	switch actionID {
 	// Info views
-	case actions.ActionRouterStatus, actions.ActionTunnelStatus, actions.ActionBackendStatus, actions.ActionBackendAvailable,
-		actions.ActionBackendAdd:
+	case actions.ActionRouterStatus, actions.ActionTunnelStatus, actions.ActionTunnelShare,
+		actions.ActionBackendStatus, actions.ActionBackendAvailable, actions.ActionBackendAdd:
 		return true
 	// Progress views
 	case actions.ActionRouterSwitch, actions.ActionRouterStart, actions.ActionRouterStop,
@@ -30,11 +30,10 @@ func isInfoViewAction(actionID string) bool {
 	return false
 }
 
-// newActionContext creates a new action context with args.
-func newActionContext(args []string) *actions.Context {
+// newActionContext creates a new interactive action context.
+func newActionContext() *actions.Context {
 	ctx := &actions.Context{
 		Ctx:           context.Background(),
-		Args:          args,
 		Values:        make(map[string]interface{}),
 		Output:        handlers.NewTUIOutput(),
 		IsInteractive: true,
@@ -47,6 +46,32 @@ func newActionContext(args []string) *actions.Context {
 	}
 
 	return ctx
+}
+
+// handleConfirmation shows a confirmation prompt if the action requires one.
+// titleSuffix is appended to the message (e.g. "'tunnel-tag'") when present.
+func handleConfirmation(action *actions.Action, titleSuffix string) error {
+	if action.Confirm == nil {
+		return nil
+	}
+
+	title := action.Confirm.Message
+	if titleSuffix != "" {
+		title = fmt.Sprintf("%s '%s'?", title, titleSuffix)
+	}
+
+	confirm, err := tui.RunConfirm(tui.ConfirmConfig{
+		Title:       title,
+		Description: action.Confirm.Description,
+		Default:     !action.Confirm.DefaultNo,
+	})
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		return errCancelled
+	}
+	return nil
 }
 
 // BuildMenuOptions builds menu options from child actions.
@@ -100,19 +125,7 @@ func RunAction(actionID string) error {
 		return fmt.Errorf("unknown action: %s", actionID)
 	}
 
-	// Build context
-	ctx := &actions.Context{
-		Ctx:           context.Background(),
-		Values:        make(map[string]interface{}),
-		Output:        handlers.NewTUIOutput(),
-		IsInteractive: true,
-	}
-
-	// Load config
-	if router.IsInitialized() {
-		cfg, _ := config.Load()
-		ctx.Config = cfg
-	}
+	ctx := newActionContext()
 
 	// Handle argument collection
 	if action.Args != nil {
@@ -151,6 +164,23 @@ func RunAction(actionID string) error {
 	}
 
 	// Collect inputs interactively
+	if err := collectInputs(ctx, action); err != nil {
+		return err
+	}
+
+	if err := handleConfirmation(action, ""); err != nil {
+		return err
+	}
+
+	if action.Handler == nil {
+		return fmt.Errorf("no handler for action %s", action.ID)
+	}
+
+	return action.Handler(ctx)
+}
+
+// collectInputs collects action inputs interactively via TUI forms.
+func collectInputs(ctx *actions.Context, action *actions.Action) error {
 	for _, input := range action.Inputs {
 		// Check ShowIf condition
 		if input.ShowIf != nil && !input.ShowIf(ctx) {
@@ -336,28 +366,7 @@ func RunAction(actionID string) error {
 
 		ctx.Values[input.Name] = value
 	}
-
-	// Handle confirmation
-	if action.Confirm != nil {
-		confirm, err := tui.RunConfirm(tui.ConfirmConfig{
-			Title:       action.Confirm.Message,
-			Description: action.Confirm.Description,
-			Default:     !action.Confirm.DefaultNo,
-		})
-		if err != nil {
-			return err
-		}
-		if !confirm {
-			return errCancelled
-		}
-	}
-
-	// Run the handler
-	if action.Handler == nil {
-		return fmt.Errorf("no handler for action %s", action.ID)
-	}
-
-	return action.Handler(ctx)
+	return nil
 }
 
 // runPickerForAction shows a picker for an action's argument.
