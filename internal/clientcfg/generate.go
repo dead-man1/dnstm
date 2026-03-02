@@ -64,12 +64,6 @@ func Generate(tunnel *config.TunnelConfig, backend *config.BackendConfig, opts G
 		// No extra fields needed
 
 	case config.BackendSSH:
-		if opts.User == "" {
-			return nil, fmt.Errorf("SSH user is required")
-		}
-		if opts.Password == "" && opts.PrivateKey == "" {
-			return nil, fmt.Errorf("SSH password or private key is required")
-		}
 		cfg.Backend.User = opts.User
 		cfg.Backend.Password = opts.Password
 		if opts.PrivateKey != "" {
