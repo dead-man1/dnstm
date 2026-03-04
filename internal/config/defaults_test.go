@@ -156,6 +156,10 @@ func TestApplyDefaults_PortAllocation(t *testing.T) {
 }
 
 func TestAllocateNextPort(t *testing.T) {
+	if !IsPortFree(5312) {
+		t.Skip("port 5312 is in use on this system")
+	}
+
 	cfg := &Config{
 		Tunnels: []TunnelConfig{
 			{Tag: "tunnel-a", Port: 5310},
@@ -170,6 +174,10 @@ func TestAllocateNextPort(t *testing.T) {
 }
 
 func TestAllocateNextPort_Empty(t *testing.T) {
+	if !IsPortFree(DefaultPortStart) {
+		t.Skipf("port %d is in use on this system", DefaultPortStart)
+	}
+
 	cfg := &Config{}
 
 	port := cfg.AllocateNextPort()
@@ -179,6 +187,10 @@ func TestAllocateNextPort_Empty(t *testing.T) {
 }
 
 func TestAllocateNextPort_Gap(t *testing.T) {
+	if !IsPortFree(5311) {
+		t.Skip("port 5311 is in use on this system")
+	}
+
 	cfg := &Config{
 		Tunnels: []TunnelConfig{
 			{Tag: "tunnel-a", Port: 5310},
