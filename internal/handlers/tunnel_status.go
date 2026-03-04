@@ -50,6 +50,11 @@ func HandleTunnelStatus(ctx *actions.Context) error {
 			{Key: "Status", Value: tunnel.StatusString()},
 		},
 	}
+	if tunnelCfg.Transport == config.TransportDNSTT && tunnelCfg.DNSTT != nil {
+		mainSection.Rows = append(mainSection.Rows, actions.InfoRow{
+			Key: "MTU", Value: fmt.Sprintf("%d", tunnelCfg.DNSTT.MTU),
+		})
+	}
 	infoCfg.Sections = append(infoCfg.Sections, mainSection)
 
 	// Show certificate/key info based on transport type

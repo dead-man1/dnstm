@@ -134,7 +134,7 @@ func (t *Tunnel) StatusString() string {
 
 // GetFormattedInfo returns formatted information about the tunnel.
 func (t *Tunnel) GetFormattedInfo() string {
-	return fmt.Sprintf(`Tag:       %s
+	info := fmt.Sprintf(`Tag:       %s
 Transport: %s
 Backend:   %s
 Domain:    %s
@@ -150,5 +150,9 @@ Status:    %s
 		t.ServiceName,
 		t.StatusString(),
 	)
+	if t.Transport == config.TransportDNSTT && t.Config != nil && t.Config.DNSTT != nil {
+		info += fmt.Sprintf("MTU:       %d\n", t.Config.DNSTT.MTU)
+	}
+	return info
 }
 

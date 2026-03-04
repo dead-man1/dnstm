@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/net2share/dnstm/internal/actions"
 	"github.com/net2share/dnstm/internal/certs"
@@ -129,6 +130,34 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 		break
 	}
 
+	// Get MTU for DNSTT
+	mtu := 1232
+	if config.TransportType(transportType) == config.TransportDNSTT {
+		for {
+			mtuStr, confirmed, mtuErr := tui.RunInput(tui.InputConfig{
+				Title:       "MTU",
+				Description: "DNS packet MTU (512-1400)",
+				Value:       "1232",
+			})
+			if mtuErr != nil {
+				return mtuErr
+			}
+			if !confirmed {
+				return nil
+			}
+			if mtuStr == "" {
+				mtuStr = "1232"
+			}
+			parsed, parseErr := strconv.Atoi(mtuStr)
+			if parseErr != nil || parsed < 512 || parsed > 1400 {
+				ctx.Output.Error("MTU must be a number between 512 and 1400")
+				continue
+			}
+			mtu = parsed
+			break
+		}
+	}
+
 	// Build tunnel config
 	tunnelCfg := &config.TunnelConfig{
 		Tag:       tag,
@@ -139,7 +168,7 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 
 	// Transport-specific configuration
 	if tunnelCfg.Transport == config.TransportDNSTT {
-		tunnelCfg.DNSTT = &config.DNSTTConfig{MTU: 1232}
+		tunnelCfg.DNSTT = &config.DNSTTConfig{MTU: mtu}
 	}
 
 	// Allocate port
