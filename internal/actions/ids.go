@@ -19,7 +19,8 @@ const (
 	ActionTunnelStop        = "tunnel.stop"
 	ActionTunnelRestart     = "tunnel.restart"
 	ActionTunnelStatus      = "tunnel.status"
-	ActionTunnelLogs = "tunnel.logs"
+	ActionTunnelLogs  = "tunnel.logs"
+	ActionTunnelShare = "tunnel.share"
 
 	// Router actions
 	ActionRouter        = "router"

@@ -154,6 +154,53 @@ func init() {
 		},
 	})
 
+	// Register tunnel.share action
+	Register(&Action{
+		ID:                ActionTunnelShare,
+		Parent:            ActionTunnel,
+		Use:               "share",
+		Short:             "Generate a shareable client config URL",
+		Long:              "Generate a dnst:// URL containing all client-needed connection info",
+		MenuLabel:         "Share",
+		RequiresRoot:      true,
+		RequiresInstalled: true,
+		Args: &ArgsSpec{
+			Name:        "tag",
+			Description: "Tunnel tag",
+			Required:    true,
+			PickerFunc:  TunnelPicker,
+		},
+		Inputs: []InputField{
+			{
+				Name:        "user",
+				Label:       "SSH User",
+				Type:        InputTypeText,
+				Description: "SSH username for client connection",
+				ShowIf:      tunnelHasSSHBackend,
+			},
+			{
+				Name:        "password",
+				Label:       "Password",
+				Type:        InputTypePassword,
+				Description: "SSH password for client connection",
+				ShowIf:      tunnelHasSSHBackend,
+			},
+			{
+				Name:        "key",
+				Label:       "SSH Private Key",
+				Type:        InputTypeText,
+				Description: "Path to SSH private key for authentication",
+				ShowIf:      tunnelHasSSHBackend,
+			},
+			{
+				Name:        "no-cert",
+				Label:       "Skip Certificate",
+				Type:        InputTypeBool,
+				Description: "Skip embedding certificate for Slipstream tunnels",
+			},
+		},
+	})
+
 	// Register tunnel.add action
 	Register(&Action{
 		ID:                ActionTunnelAdd,
@@ -340,4 +387,21 @@ func SetTunnelHandler(actionID string, handler Handler) {
 // NoTunnelsError returns an error indicating no tunnels exist.
 func NoTunnelsError() error {
 	return fmt.Errorf("no tunnels configured")
+}
+
+// tunnelHasSSHBackend checks if the selected tunnel uses an SSH backend.
+func tunnelHasSSHBackend(ctx *Context) bool {
+	tag := ctx.GetString("tag")
+	if tag == "" || ctx.Config == nil {
+		return false
+	}
+	tunnel := ctx.Config.GetTunnelByTag(tag)
+	if tunnel == nil {
+		return false
+	}
+	backend := ctx.Config.GetBackendByTag(tunnel.Backend)
+	if backend == nil {
+		return false
+	}
+	return backend.Type == config.BackendSSH
 }

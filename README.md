@@ -4,25 +4,26 @@ A CLI tool to deploy and manage DNS tunnel servers on Linux. Run single tunnels 
 
 ## Supported Transports
 
-| Transport      | Description                                    |
-| -------------- | ---------------------------------------------- |
+| Transport      | Description                                     |
+| -------------- | ----------------------------------------------- |
 | **Slipstream** | High-performance DNS tunnel with TLS encryption |
-| **DNSTT**      | Classic DNS tunnel using Curve25519 keys       |
+| **DNSTT**      | Classic DNS tunnel using Curve25519 keys        |
 
 ## Supported Backends
 
-| Backend         | Description                              | Transports       |
-| --------------- | ---------------------------------------- | ---------------- |
-| **SOCKS**       | Built-in microsocks SOCKS5 proxy         | Slipstream, DNSTT |
-| **SSH**         | Forward to local SSH server              | Slipstream, DNSTT |
-| **Shadowsocks** | Encrypted proxy via SIP003 plugin        | Slipstream only  |
-| **Custom**      | Forward to any TCP address               | Slipstream, DNSTT |
+| Backend         | Description                       | Transports        |
+| --------------- | --------------------------------- | ----------------- |
+| **SOCKS**       | Built-in microsocks SOCKS5 proxy  | Slipstream, DNSTT |
+| **SSH**         | Forward to local SSH server       | Slipstream, DNSTT |
+| **Shadowsocks** | Encrypted proxy via SIP003 plugin | Slipstream only   |
+| **Custom**      | Forward to any TCP address        | Slipstream, DNSTT |
 
 ## Features
 
 - Two operating modes: single-tunnel and multi-tunnel (DNS router)
 - Interactive menu and full CLI support
 - Auto-generated TLS certificates (Slipstream) and Curve25519 keys (DNSTT)
+- Shareable `dnst://` URLs for easy client setup (`tunnel share`)
 - Firewall configuration (UFW, firewalld, iptables)
 - systemd service management with security hardening
 - SSH tunnel user management with sshd hardening
@@ -133,6 +134,7 @@ sudo dnstm config load config.json
 ```
 
 Example `config.json` (certs/keys auto-generated):
+
 ```json
 {
   "backends": [
@@ -181,11 +183,24 @@ Example `config.json` (certs/keys auto-generated):
 }
 ```
 
+### Share with Client
+
+Generate a `dnst://` URL to share tunnel configuration with [dnstc](https://github.com/net2share/dnstc):
+
+```bash
+# SOCKS or Shadowsocks tunnel
+sudo dnstm tunnel share -t slip-socks
+
+# SSH tunnel (requires credentials)
+sudo dnstm tunnel share -t dnstt-ssh --user tunnel-user --password secret
+```
+
 ### Common Commands
 
 ```bash
 sudo dnstm router status          # View router and tunnel status
 sudo dnstm tunnel list            # List all tunnels
+sudo dnstm tunnel share -t <tag>  # Generate shareable client config URL
 sudo dnstm tunnel logs -t <tag>   # View tunnel logs
 sudo dnstm router logs            # View router logs (multi-mode)
 sudo dnstm update                 # Check for and install updates
@@ -222,6 +237,8 @@ sudo dnstm router mode multi
 - [Configuration](docs/CONFIGURATION.md) - Configuration files and options
 - [Client Setup](docs/CLIENT.md) - Client-side connection guides
 - [Development](docs/DEVELOPMENT.md) - Action-based architecture and adding commands
+- [Testing](docs/TESTING.md) - Testing guide and remote test setup
+- [Benchmarks](docs/BENCHMARKS-v0.5.0.md) - Performance benchmarks
 
 ## Requirements
 
