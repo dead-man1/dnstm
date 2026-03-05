@@ -117,15 +117,24 @@ func HandleConfigLoad(ctx *actions.Context) error {
 
 	ctx.Output.Status("Configuration saved to " + config.GetConfigPath())
 
-	// Reconfigure microsocks if the proxy port was explicitly specified
-	if newCfg.Proxy.Port != 0 && proxy.IsMicrosocksInstalled() {
-		if err := proxy.ConfigureMicrosocks(newCfg.Proxy.Port); err != nil {
+	// Reconfigure microsocks with port and auth from loaded config
+	if proxy.IsMicrosocksInstalled() {
+		port := newCfg.Proxy.Port
+		if port == 0 {
+			port = 1080
+		}
+		var socksUser, socksPass string
+		if socksBackend := newCfg.GetBackendByTag("socks"); socksBackend != nil && socksBackend.HasSocksAuth() {
+			socksUser = socksBackend.Socks.User
+			socksPass = socksBackend.Socks.Password
+		}
+		if err := proxy.ConfigureMicrosocksWithAuth(port, socksUser, socksPass); err != nil {
 			ctx.Output.Warning(fmt.Sprintf("Failed to reconfigure microsocks: %v", err))
 		} else {
 			if err := proxy.RestartMicrosocks(); err != nil {
 				ctx.Output.Warning(fmt.Sprintf("Failed to restart microsocks: %v", err))
 			} else {
-				ctx.Output.Status(fmt.Sprintf("Microsocks reconfigured on port %d", newCfg.Proxy.Port))
+				ctx.Output.Status(fmt.Sprintf("Microsocks reconfigured on port %d", port))
 			}
 		}
 	}
