@@ -199,6 +199,47 @@ check_result() {
     fi
 }
 
+check_result_auth() {
+    local label="$1"
+    local socks_port="$2"
+    local expected_ip="$3"
+    local user="$4"
+    local password="$5"
+    local timeout="${6:-15}"
+
+    local result
+    result=$(curl -sf --max-time "$timeout" -x "socks5h://${user}:${password}@127.0.0.1:$socks_port" https://httpbin.org/ip 2>/dev/null || true)
+    local origin
+    origin=$(echo "$result" | jq -r '.origin' 2>/dev/null || true)
+
+    if [[ "$origin" == "$expected_ip" ]]; then
+        pass "$label"
+        return 0
+    else
+        fail "$label" "expected=$expected_ip got=${origin:-empty}"
+        return 1
+    fi
+}
+
+check_result_noauth_fails() {
+    local label="$1"
+    local socks_port="$2"
+    local timeout="${3:-10}"
+
+    local result
+    result=$(curl -sf --max-time "$timeout" -x "socks5h://127.0.0.1:$socks_port" https://httpbin.org/ip 2>/dev/null || true)
+    local origin
+    origin=$(echo "$result" | jq -r '.origin' 2>/dev/null || true)
+
+    if [[ -z "$origin" || "$origin" == "null" ]]; then
+        pass "$label (no-auth rejected)"
+        return 0
+    else
+        fail "$label (no-auth rejected)" "expected rejection, got origin=$origin"
+        return 1
+    fi
+}
+
 wait_for_port() {
     local port="$1"
     local retries="${2:-20}"
@@ -300,6 +341,17 @@ generate_single_config() {
     ss_method=$(jq -r '.shadowsocks.single.method' "$CONFIG_FILE")
     ss_password=$(jq -r '.shadowsocks.single.password' "$CONFIG_FILE")
 
+    local socks_user socks_pass socks_block=""
+    socks_user=$(jq -r '.socks_auth.user // ""' "$CONFIG_FILE")
+    socks_pass=$(jq -r '.socks_auth.password // ""' "$CONFIG_FILE")
+    if [[ -n "$socks_user" && -n "$socks_pass" ]]; then
+        socks_block=',
+      "socks": {
+        "user": "'"$socks_user"'",
+        "password": "'"$socks_pass"'"
+      }'
+    fi
+
     cat > "$TMPDIR/config-single.json" <<EOFSINGLE
 {
   "log": {
@@ -309,6 +361,11 @@ generate_single_config() {
     "address": "0.0.0.0:53"
   },
   "backends": [
+    {
+      "tag": "socks",
+      "type": "socks",
+      "address": "127.0.0.1:1080"${socks_block}
+    },
     {
       "tag": "ss-backend",
       "type": "shadowsocks",
@@ -328,7 +385,7 @@ generate_single_config() {
     {
       "tag": "dnstt-main",
       "transport": "dnstt",
-      "backend": "ssh",
+      "backend": "socks",
       "domain": "$(read_domain dnstt_socks)"
     },
     {
@@ -486,6 +543,48 @@ test_dnstt_ssh() {
     cleanup_clients
 }
 
+# test_slipstream_socks_auth TAG DOMAIN LOCAL_PORT USER PASSWORD
+test_slipstream_socks_auth() {
+    local tag="$1" domain="$2" local_port="$3" user="$4" password="$5"
+    local cert_path
+    cert_path=$(get_cert "$tag")
+    local server_ip
+    server_ip=$(get_server_ip)
+
+    slipstream-client -d "$domain" -r "$DNS_RESOLVER:53" -l "$local_port" --cert "$cert_path" &
+    CLIENT_PIDS+=($!)
+
+    if wait_for_tcp "$local_port" 30; then
+        check_result_noauth_fails "Test $tag (slipstream+socks+auth)" "$local_port"
+        check_result_auth "Test $tag (slipstream+socks+auth)" "$local_port" "$server_ip" "$user" "$password"
+    else
+        fail "Test $tag (slipstream+socks+auth)" "client did not come up"
+    fi
+
+    cleanup_clients
+}
+
+# test_dnstt_socks_auth TAG DOMAIN LOCAL_PORT USER PASSWORD
+test_dnstt_socks_auth() {
+    local tag="$1" domain="$2" local_port="$3" user="$4" password="$5"
+    local pubkey
+    pubkey=$(get_pubkey "$tag")
+    local server_ip
+    server_ip=$(get_server_ip)
+
+    dnstt-client -udp "$DNS_RESOLVER:53" -pubkey "$pubkey" "$domain" "127.0.0.1:$local_port" &
+    CLIENT_PIDS+=($!)
+
+    if wait_for_tcp "$local_port" 30; then
+        check_result_noauth_fails "Test $tag (dnstt+socks+auth)" "$local_port"
+        check_result_auth "Test $tag (dnstt+socks+auth)" "$local_port" "$server_ip" "$user" "$password"
+    else
+        fail "Test $tag (dnstt+socks+auth)" "client did not come up"
+    fi
+
+    cleanup_clients
+}
+
 # ─── Shared setup ────────────────────────────────────────────────────────────
 
 setup_multi_state() {
@@ -605,6 +704,39 @@ phase_single() {
     next_port; local slip_ss_tunnel=$PORT_COUNTER
     next_port; local slip_ss_socks=$PORT_COUNTER
     test_slipstream_ss "slip-ss" "$(read_domain slip_ss)" "$slip_ss_tunnel" "$slip_ss_socks" "$ss_method" "$ss_password"
+
+    # Test SOCKS auth
+    local socks_user socks_pass
+    socks_user=$(jq -r '.socks_auth.user // ""' "$CONFIG_FILE")
+    socks_pass=$(jq -r '.socks_auth.password // ""' "$CONFIG_FILE")
+    if [[ -n "$socks_user" && -n "$socks_pass" ]]; then
+        info "Enabling SOCKS auth..."
+        remote "dnstm backend auth -t socks -u $socks_user -p $socks_pass" >/dev/null 2>&1
+        pass "Enable SOCKS auth"
+
+        # Test slipstream+socks with auth
+        info "Switching to slip-socks (auth)..."
+        remote "dnstm router switch -t slip-socks" >/dev/null 2>&1
+        sleep 2
+        next_port; test_slipstream_socks_auth "slip-socks" "$(read_domain slip_socks)" "$PORT_COUNTER" "$socks_user" "$socks_pass"
+
+        # Test dnstt+socks with auth
+        info "Switching to dnstt-socks (auth)..."
+        remote "dnstm router switch -t dnstt-socks" >/dev/null 2>&1
+        sleep 2
+        next_port; test_dnstt_socks_auth "dnstt-socks" "$(read_domain dnstt_socks)" "$PORT_COUNTER" "$socks_user" "$socks_pass"
+
+        # Disable auth
+        info "Disabling SOCKS auth..."
+        remote "dnstm backend auth -t socks --disable" >/dev/null 2>&1
+        pass "Disable SOCKS auth"
+
+        # Verify no-auth works again
+        info "Switching to slip-socks (no auth)..."
+        remote "dnstm router switch -t slip-socks" >/dev/null 2>&1
+        sleep 2
+        next_port; test_slipstream_socks "slip-socks" "$(read_domain slip_socks)" "$PORT_COUNTER"
+    fi
 }
 
 # ─── Phase: Multi Mode ────────────────────────────────────────────────────────
@@ -773,11 +905,29 @@ phase_config_reload() {
         fail "Validate cleanup" "some cleanup checks failed"
     fi
 
+    # Validate microsocks auth
+    local socks_user socks_pass
+    socks_user=$(jq -r '.socks_auth.user // ""' "$CONFIG_FILE")
+    socks_pass=$(jq -r '.socks_auth.password // ""' "$CONFIG_FILE")
+    if [[ -n "$socks_user" && -n "$socks_pass" ]]; then
+        local ms_exec
+        ms_exec=$(remote "systemctl cat microsocks 2>/dev/null | grep ExecStart" || true)
+        if echo "$ms_exec" | grep -q "\-u $socks_user"; then
+            pass "Microsocks has auth flags"
+        else
+            fail "Microsocks has auth flags" "ExecStart: $ms_exec"
+        fi
+    fi
+
     # Invalidate cert cache since tunnels were recreated
     invalidate_cert_cache
 
-    # Test active tunnel: slip-main
-    next_port; test_slipstream_socks "slip-main" "$(read_domain slip_socks)" "$PORT_COUNTER"
+    # Test active tunnel: slip-main (with auth if configured)
+    if [[ -n "$socks_user" && -n "$socks_pass" ]]; then
+        next_port; test_slipstream_socks_auth "slip-main" "$(read_domain slip_socks)" "$PORT_COUNTER" "$socks_user" "$socks_pass"
+    else
+        next_port; test_slipstream_socks "slip-main" "$(read_domain slip_socks)" "$PORT_COUNTER"
+    fi
 }
 
 # ─── Connection output file ───────────────────────────────────────────────────
