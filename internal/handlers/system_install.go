@@ -108,6 +108,10 @@ func HandleInstall(ctx *actions.Context) error {
 		return fmt.Errorf("failed to install ssserver: %w", err)
 	}
 
+	if err := transport.EnsureVayDNSInstalledWithStatus(statusFn); err != nil {
+		return fmt.Errorf("failed to install vaydns-server: %w", err)
+	}
+
 	if err := transport.EnsureSSHTunUserInstalledWithStatus(statusFn); err != nil {
 		ctx.Output.Warning("sshtun-user: " + err.Error())
 	}

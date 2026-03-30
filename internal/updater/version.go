@@ -22,6 +22,7 @@ type VersionManifest struct {
 	SSServer         string    `json:"ssserver,omitempty"`
 	Microsocks       string    `json:"microsocks,omitempty"`
 	SSHTunUser       string    `json:"sshtun-user,omitempty"`
+	VayDNSServer     string    `json:"vaydns-server,omitempty"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
@@ -80,6 +81,8 @@ func (m *VersionManifest) GetVersion(binaryName string) string {
 		return m.Microsocks
 	case "sshtun-user":
 		return m.SSHTunUser
+	case "vaydns-server":
+		return m.VayDNSServer
 	default:
 		return ""
 	}
@@ -96,6 +99,8 @@ func (m *VersionManifest) SetVersion(binaryName, version string) {
 		m.Microsocks = version
 	case "sshtun-user":
 		m.SSHTunUser = version
+	case "vaydns-server":
+		m.VayDNSServer = version
 	}
 }
 

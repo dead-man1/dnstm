@@ -24,7 +24,7 @@ func GetActiveServicesForBinary(binType binary.BinaryType) []string {
 			services = append(services, proxy.MicrosocksServiceName)
 		}
 
-	case binary.BinarySlipstreamServer, binary.BinarySSServer, binary.BinaryDNSTTServer:
+	case binary.BinarySlipstreamServer, binary.BinarySSServer, binary.BinaryDNSTTServer, binary.BinaryVayDNSServer:
 		// Check tunnel services
 		cfg, err := config.Load()
 		if err != nil || cfg == nil {
@@ -67,6 +67,9 @@ func tunnelUsesBinary(tunnelCfg *config.TunnelConfig, binType binary.BinaryType)
 
 	case binary.BinaryDNSTTServer:
 		return tunnelCfg.Transport == config.TransportDNSTT
+
+	case binary.BinaryVayDNSServer:
+		return tunnelCfg.Transport == config.TransportVayDNS
 	}
 
 	return false
@@ -105,6 +108,7 @@ func GetAllActiveServices() map[binary.BinaryType][]string {
 		binary.BinaryMicrosocks,
 		// Note: dnstt-server is skipped for updates, but we still track its services
 		binary.BinaryDNSTTServer,
+		binary.BinaryVayDNSServer,
 	}
 
 	for _, binType := range binaries {
