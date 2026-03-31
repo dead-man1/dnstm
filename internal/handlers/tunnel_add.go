@@ -162,7 +162,7 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 
 	var vaydnsDnsttCompat bool
 	var vaydnsClientIDSize, vaydnsQueueSize int
-	var vaydnsIdleTimeout, vaydnsKeepAlive string
+	var vaydnsIdleTimeout, vaydnsKeepAlive, vaydnsRecordType string
 	if config.TransportType(transportType) == config.TransportVayDNS {
 		confirm, confirmErr := tui.RunConfirm(tui.ConfirmConfig{
 			Title:       "DNSTT-compatible wire format?",
@@ -282,6 +282,30 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 			vaydnsQueueSize = parsed
 			break
 		}
+
+		// record-type: only if not dnstt-compat (compat forces txt)
+		if !vaydnsDnsttCompat {
+			rtOptions := []tui.MenuOption{
+				{Label: "TXT (default)", Value: "txt"},
+				{Label: "CNAME", Value: "cname"},
+				{Label: "A", Value: "a"},
+				{Label: "AAAA", Value: "aaaa"},
+				{Label: "MX", Value: "mx"},
+				{Label: "NS", Value: "ns"},
+				{Label: "SRV", Value: "srv"},
+			}
+			rtValue, rtErr := tui.RunMenu(tui.MenuConfig{
+				Title:   "DNS Record Type",
+				Options: rtOptions,
+			})
+			if rtErr != nil {
+				return rtErr
+			}
+			if rtValue == "" {
+				return nil
+			}
+			vaydnsRecordType = rtValue
+		}
 	}
 
 	// Build tunnel config
@@ -304,6 +328,7 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 			IdleTimeout:  vaydnsIdleTimeout,
 			KeepAlive:    vaydnsKeepAlive,
 			QueueSize:    vaydnsQueueSize,
+			RecordType:   vaydnsRecordType,
 		}
 	}
 
@@ -384,9 +409,14 @@ func addTunnelNonInteractive(ctx *actions.Context, cfg *config.Config) error {
 		dnsttCompat := ctx.GetBool("dnstt-compat")
 		cid := ctx.GetInt("clientid-size")
 
+		recordType := ctx.GetString("record-type")
+
 		// clientid-size is ignored by vaydns-server when dnstt-compat is set (forced to 8)
 		if dnsttCompat && cid != 0 {
 			return fmt.Errorf("--clientid-size cannot be used with --dnstt-compat (compat mode forces 8-byte client IDs)")
+		}
+		if dnsttCompat && recordType != "" && recordType != "txt" {
+			return fmt.Errorf("--record-type must be txt when --dnstt-compat is enabled")
 		}
 
 		v := &config.VayDNSConfig{
@@ -400,6 +430,7 @@ func addTunnelNonInteractive(ctx *actions.Context, cfg *config.Config) error {
 			KCPWindowSize: ctx.GetInt("kcp-window-size"),
 			QueueOverflow: ctx.GetString("queue-overflow"),
 			LogLevel:      ctx.GetString("log-level"),
+			RecordType:    recordType,
 		}
 		tunnelCfg.VayDNS = v
 	}

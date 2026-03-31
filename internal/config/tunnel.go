@@ -47,7 +47,11 @@ type VayDNSConfig struct {
 	KCPWindowSize  int    `json:"kcp_window_size,omitempty"`
 	QueueOverflow  string `json:"queue_overflow,omitempty"`
 	LogLevel       string `json:"log_level,omitempty"`
+	RecordType     string `json:"record_type,omitempty"`
 }
+
+// ValidVayDNSRecordTypes returns the valid record types for VayDNS.
+var ValidVayDNSRecordTypes = []string{"txt", "cname", "a", "aaaa", "mx", "ns", "srv"}
 
 // ResolvedVayDNSIdleTimeout returns the idle-timeout string for vaydns-server, applying defaults when empty.
 func (v *VayDNSConfig) ResolvedVayDNSIdleTimeout() string {

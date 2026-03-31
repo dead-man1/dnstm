@@ -199,6 +199,21 @@ func (c *Config) validateTunnels() error {
 					return fmt.Errorf("tunnel '%s': vaydns.log_level must be debug, info, warning, or error", t.Tag)
 				}
 			}
+			if t.VayDNS.RecordType != "" {
+				validRT := false
+				for _, rt := range ValidVayDNSRecordTypes {
+					if t.VayDNS.RecordType == rt {
+						validRT = true
+						break
+					}
+				}
+				if !validRT {
+					return fmt.Errorf("tunnel '%s': vaydns.record_type must be one of: txt, cname, a, aaaa, mx, ns, srv", t.Tag)
+				}
+				if t.VayDNS.DnsttCompat && t.VayDNS.RecordType != "txt" {
+					return fmt.Errorf("tunnel '%s': vaydns.record_type must be txt when dnstt_compat is enabled", t.Tag)
+				}
+			}
 		}
 	}
 

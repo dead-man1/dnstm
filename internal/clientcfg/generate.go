@@ -68,6 +68,7 @@ func Generate(tunnel *config.TunnelConfig, backend *config.BackendConfig, opts G
 			cfg.Transport.ClientIDSize = tunnel.VayDNS.VayDNSClientIDSizeForFlag()
 			cfg.Transport.IdleTimeout = tunnel.VayDNS.ResolvedVayDNSIdleTimeout()
 			cfg.Transport.KeepAlive = tunnel.VayDNS.ResolvedVayDNSKeepAlive()
+			cfg.Transport.RecordType = tunnel.VayDNS.RecordType
 		}
 	}
 

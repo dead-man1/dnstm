@@ -20,6 +20,7 @@ type TransportConfig struct {
 	ClientIDSize int    `json:"clientid_size,omitempty"`   // server -clientid-size (default 2)
 	IdleTimeout  string `json:"idle_timeout,omitempty"`    // server -idle-timeout
 	KeepAlive    string `json:"keepalive,omitempty"`       // server -keepalive
+	RecordType   string `json:"record_type,omitempty"`     // server -record-type (default txt)
 }
 
 // BackendConfig describes the backend service behind the tunnel.

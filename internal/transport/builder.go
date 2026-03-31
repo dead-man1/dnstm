@@ -306,8 +306,9 @@ func (b *Builder) buildVayDNSTunnel(tunnel *config.TunnelConfig, backend *config
 	if tunnel.VayDNS.LogLevel != "" && tunnel.VayDNS.LogLevel != "info" {
 		args = append(args, "-log-level", tunnel.VayDNS.LogLevel)
 	}
-	// Do not pass -record-type: the DNS router does not yet support non-TXT record types.
-	// VayDNS defaults to TXT, which is what we need.
+	if tunnel.VayDNS.RecordType != "" && tunnel.VayDNS.RecordType != "txt" {
+		args = append(args, "-record-type", tunnel.VayDNS.RecordType)
+	}
 
 	result.ExecStart = fmt.Sprintf("%s %s", VayDNSBinaryPath(), strings.Join(args, " "))
 	return result, nil
