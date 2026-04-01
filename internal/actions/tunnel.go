@@ -314,7 +314,7 @@ func init() {
 				Name:        "idle-timeout",
 				Label:       "VayDNS idle timeout",
 				Type:        InputTypeText,
-				Description: "Session idle timeout (e.g. 60s, 2m). Default: 60s (2m with --dnstt-compat)",
+				Description: "Session idle timeout (e.g. 10s, 2m). Default: 10s (2m with --dnstt-compat)",
 				ShowIf: func(ctx *Context) bool {
 					return !ctx.IsInteractive && config.TransportType(ctx.GetString("transport")) == config.TransportVayDNS
 				},
@@ -323,7 +323,7 @@ func init() {
 				Name:        "keepalive",
 				Label:       "VayDNS keepalive interval",
 				Type:        InputTypeText,
-				Description: "Keepalive ping interval (e.g. 10s). Must be less than idle timeout. Default: 10s",
+				Description: "Keepalive ping interval (e.g. 2s). Must be less than idle timeout. Default: 2s (10s with --dnstt-compat)",
 				ShowIf: func(ctx *Context) bool {
 					return !ctx.IsInteractive && config.TransportType(ctx.GetString("transport")) == config.TransportVayDNS
 				},

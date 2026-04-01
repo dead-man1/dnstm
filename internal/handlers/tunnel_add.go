@@ -201,7 +201,7 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 		}
 
 		// idle_timeout
-		defaultIdle := "60s"
+		defaultIdle := "10s"
 		if vaydnsDnsttCompat {
 			defaultIdle = "2m"
 		}
@@ -229,11 +229,15 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 		}
 
 		// keepalive
+		defaultKeep := "2s"
+		if vaydnsDnsttCompat {
+			defaultKeep = "10s"
+		}
 		for {
 			keepStr, confirmed, keepErr := tui.RunInput(tui.InputConfig{
 				Title:       "Keepalive Interval",
 				Description: "Keepalive ping interval; must be less than idle timeout",
-				Value:       "10s",
+				Value:       defaultKeep,
 			})
 			if keepErr != nil {
 				return keepErr
@@ -242,7 +246,7 @@ func addTunnelInteractive(ctx *actions.Context, cfg *config.Config) error {
 				return nil
 			}
 			if keepStr == "" {
-				keepStr = "10s"
+				keepStr = defaultKeep
 			}
 			keepDur, parseErr := time.ParseDuration(keepStr)
 			if parseErr != nil {
