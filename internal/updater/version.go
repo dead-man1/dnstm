@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/net2share/go-corelib/binman"
 )
 
 const (
@@ -16,8 +15,64 @@ const (
 	VersionManifestFile = "versions.json"
 )
 
-// VersionManifest stores installed versions of transport binaries.
+// VersionManifest wraps binman.VersionManifest with DNSTM-specific path handling.
 type VersionManifest struct {
+	m *binman.VersionManifest
+}
+
+// GetManifestPath returns the path to the version manifest file.
+func GetManifestPath() string {
+	return filepath.Join("/etc/dnstm", VersionManifestFile)
+}
+
+// NewManifest creates a new empty version manifest.
+func NewManifest() *VersionManifest {
+	return &VersionManifest{m: binman.NewManifest()}
+}
+
+// LoadManifest loads the version manifest from disk, migrating from old format if needed.
+func LoadManifest() (*VersionManifest, error) {
+	path := GetManifestPath()
+
+	// Migrate old format before loading (no-op if already new format or file missing).
+	migrateManifestIfNeeded(path)
+
+	m, err := binman.LoadManifest(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return &VersionManifest{m: m}, nil
+}
+
+// Save saves the version manifest to disk.
+func (vm *VersionManifest) Save() error {
+	return vm.m.Save(GetManifestPath())
+}
+
+// GetVersion returns the installed version for a binary.
+func (vm *VersionManifest) GetVersion(name string) string {
+	return vm.m.GetVersion(name)
+}
+
+// SetVersion sets the installed version for a binary.
+func (vm *VersionManifest) SetVersion(name, version string) {
+	vm.m.SetVersion(name, version)
+}
+
+// CompareVersions compares two version strings.
+// Returns -1 if v1 < v2, 0 if equal, 1 if v1 > v2.
+func CompareVersions(v1, v2 string) int {
+	return binman.CompareVersions(v1, v2)
+}
+
+// IsNewer returns true if newVersion is newer than currentVersion.
+func IsNewer(currentVersion, newVersion string) bool {
+	return binman.IsNewer(currentVersion, newVersion)
+}
+
+// legacyManifest represents the old flat manifest format used before binman migration.
+type legacyManifest struct {
 	SlipstreamServer string    `json:"slipstream-server,omitempty"`
 	SSServer         string    `json:"ssserver,omitempty"`
 	Microsocks       string    `json:"microsocks,omitempty"`
@@ -26,192 +81,51 @@ type VersionManifest struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// GetManifestPath returns the path to the version manifest file.
-func GetManifestPath() string {
-	return filepath.Join("/etc/dnstm", VersionManifestFile)
-}
-
-// LoadManifest loads the version manifest from disk.
-func LoadManifest() (*VersionManifest, error) {
-	path := GetManifestPath()
+// migrateManifestIfNeeded detects the old flat manifest format and converts it
+// to the new binman format. This is a no-op if the file doesn't exist or is
+// already in the new format.
+func migrateManifestIfNeeded(path string) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return &VersionManifest{}, nil
-		}
-		return nil, err
+		return // File doesn't exist, nothing to migrate
 	}
 
-	var manifest VersionManifest
-	if err := json.Unmarshal(data, &manifest); err != nil {
-		return nil, err
+	// Try to detect format by looking for the "versions" key
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return
 	}
 
-	return &manifest, nil
-}
-
-// Save saves the version manifest to disk.
-func (m *VersionManifest) Save() error {
-	path := GetManifestPath()
-
-	// Ensure directory exists
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+	// If "versions" key exists, it's already the new format
+	if _, ok := raw["versions"]; ok {
+		return
 	}
 
-	m.UpdatedAt = time.Now()
-
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		return err
+	// Old format detected — read as legacy struct
+	var old legacyManifest
+	if err := json.Unmarshal(data, &old); err != nil {
+		return
 	}
 
-	return os.WriteFile(path, data, 0644)
-}
-
-// GetVersion returns the installed version for a binary.
-func (m *VersionManifest) GetVersion(binaryName string) string {
-	switch binaryName {
-	case "slipstream-server":
-		return m.SlipstreamServer
-	case "ssserver":
-		return m.SSServer
-	case "microsocks":
-		return m.Microsocks
-	case "sshtun-user":
-		return m.SSHTunUser
-	case "vaydns-server":
-		return m.VayDNSServer
-	default:
-		return ""
+	// Convert to new format
+	m := binman.NewManifest()
+	if old.SlipstreamServer != "" {
+		m.SetVersion("slipstream-server", old.SlipstreamServer)
 	}
-}
-
-// SetVersion sets the installed version for a binary.
-func (m *VersionManifest) SetVersion(binaryName, version string) {
-	switch binaryName {
-	case "slipstream-server":
-		m.SlipstreamServer = version
-	case "ssserver":
-		m.SSServer = version
-	case "microsocks":
-		m.Microsocks = version
-	case "sshtun-user":
-		m.SSHTunUser = version
-	case "vaydns-server":
-		m.VayDNSServer = version
+	if old.SSServer != "" {
+		m.SetVersion("ssserver", old.SSServer)
 	}
-}
-
-// CompareVersions compares two version strings.
-// Returns:
-//
-//	-1 if v1 < v2
-//	 0 if v1 == v2
-//	 1 if v1 > v2
-//
-// Handles both semver (v1.23.0) and date-based (v2026.01.29) versions.
-func CompareVersions(v1, v2 string) int {
-	// Normalize: remove 'v' prefix
-	v1 = strings.TrimPrefix(v1, "v")
-	v2 = strings.TrimPrefix(v2, "v")
-
-	// Empty version is always older
-	if v1 == "" && v2 == "" {
-		return 0
+	if old.Microsocks != "" {
+		m.SetVersion("microsocks", old.Microsocks)
 	}
-	if v1 == "" {
-		return -1
+	if old.SSHTunUser != "" {
+		m.SetVersion("sshtun-user", old.SSHTunUser)
 	}
-	if v2 == "" {
-		return 1
+	if old.VayDNSServer != "" {
+		m.SetVersion("vaydns-server", old.VayDNSServer)
 	}
+	m.UpdatedAt = old.UpdatedAt
 
-	// Dev/unknown versions are always older than any real version
-	if isDevVersion(v1) && !isDevVersion(v2) {
-		return -1
-	}
-	if !isDevVersion(v1) && isDevVersion(v2) {
-		return 1
-	}
-	if isDevVersion(v1) && isDevVersion(v2) {
-		return 0
-	}
-
-	// Check if date-based (YYYY.MM.DD format)
-	datePattern := regexp.MustCompile(`^\d{4}\.\d{2}\.\d{2}$`)
-	if datePattern.MatchString(v1) && datePattern.MatchString(v2) {
-		return strings.Compare(v1, v2)
-	}
-
-	// Parse as semver
-	parts1 := parseVersion(v1)
-	parts2 := parseVersion(v2)
-
-	// Compare each part
-	maxLen := len(parts1)
-	if len(parts2) > maxLen {
-		maxLen = len(parts2)
-	}
-
-	for i := 0; i < maxLen; i++ {
-		var p1, p2 int
-		if i < len(parts1) {
-			p1 = parts1[i]
-		}
-		if i < len(parts2) {
-			p2 = parts2[i]
-		}
-
-		if p1 < p2 {
-			return -1
-		}
-		if p1 > p2 {
-			return 1
-		}
-	}
-
-	return 0
-}
-
-// isDevVersion returns true for non-release versions like "dev", "unknown", etc.
-func isDevVersion(v string) bool {
-	switch v {
-	case "dev", "unknown", "latest":
-		return true
-	}
-	// No digits at all means not a real version
-	for _, c := range v {
-		if c >= '0' && c <= '9' {
-			return false
-		}
-	}
-	return true
-}
-
-// parseVersion extracts numeric parts from a version string.
-func parseVersion(v string) []int {
-	// Split by non-numeric characters
-	re := regexp.MustCompile(`[^\d]+`)
-	parts := re.Split(v, -1)
-
-	var result []int
-	for _, p := range parts {
-		if p == "" {
-			continue
-		}
-		n, err := strconv.Atoi(p)
-		if err != nil {
-			continue
-		}
-		result = append(result, n)
-	}
-
-	return result
-}
-
-// IsNewer returns true if newVersion is newer than currentVersion.
-func IsNewer(currentVersion, newVersion string) bool {
-	return CompareVersions(currentVersion, newVersion) < 0
+	// Save in new format (overwrites old file)
+	_ = m.Save(path)
 }
