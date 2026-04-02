@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/net2share/dnstm/compare/v0.7.0...v0.7.1) (2026-04-02)
+
+
+### Bug Fixes
+
+* **vaydns:** validate record-type, show VayDNS details in CLI output ([4ab1b8d](https://github.com/net2share/dnstm/commit/4ab1b8d2f10c361b85887110548b2711370a5f7d))
+
 ## [0.7.0](https://github.com/net2share/dnstm/compare/v0.6.8...v0.7.0) (2026-04-02)
 
 
