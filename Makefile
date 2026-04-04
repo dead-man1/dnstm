@@ -10,7 +10,7 @@ all: build
 
 # Build the binary
 build:
-	go build $(LDFLAGS) -o dnstm ./main.go
+	CGO_ENABLED=0 go build $(LDFLAGS) -o dnstm ./main.go
 
 # Install the binary
 install: build
